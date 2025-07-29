@@ -92,24 +92,26 @@ export default function Home() {
         {/* Processing Steps */}
         <ProcessingSteps currentStep={currentStep} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={`grid grid-cols-1 gap-8 ${!isProcessing && !isCompleted ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
           {/* Main Content Area */}
-          <div className="lg:col-span-2">
+          <div className={!isProcessing && !isCompleted ? 'lg:col-span-2' : 'lg:col-span-1'}>
             {renderMainContent()}
           </div>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <SettingsPanel
-              settings={settings}
-              onSettingsChange={setSettings}
-            />
-            <StatusPanel
-              isProcessing={isProcessing}
-              queueLength={isProcessing ? 1 : 0}
-              apiUsage="0/1000 calls"
-            />
-          </div>
+          {/* Sidebar - Only show when not processing */}
+          {!isProcessing && !isCompleted && (
+            <div className="lg:col-span-1 space-y-6">
+              <SettingsPanel
+                settings={settings}
+                onSettingsChange={setSettings}
+              />
+              <StatusPanel
+                isProcessing={isProcessing}
+                queueLength={0}
+                apiUsage="0/1000 calls"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
