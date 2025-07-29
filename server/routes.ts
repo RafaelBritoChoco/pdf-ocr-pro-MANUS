@@ -160,6 +160,7 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
 
   try {
     // Step 1: Extract text
+    const extractionStartTime = new Date();
     state.currentStep = 2;
     state.message = 'Extracting text from PDF...';
     state.progress = 25;
@@ -173,6 +174,8 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     });
 
     const extractionResult = await pdfProcessor.extractText(buffer, settings);
+    const extractionEndTime = new Date();
+    const extractionDuration = extractionEndTime.getTime() - extractionStartTime.getTime();
     
     await storage.updateDocument(documentId, {
       originalText: extractionResult.text,
@@ -184,16 +187,18 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       documentId,
       step: 'extract',
       status: 'completed',
-      message: `Text extracted: ${extractionResult.wordCount} words, ${extractionResult.pageCount} pages`
+      message: `Text extracted: ${extractionResult.wordCount} words, ${extractionResult.pageCount} pages`,
+      duration: extractionDuration
     });
 
     // Step 2: Analyze structure
+    const analysisStartTime = new Date();
     state.currentStep = 3;
     state.message = 'Analyzing document structure...';
     state.progress = 50;
     state.logs.push({
-      timestamp: new Date().toISOString(),
-      message: 'Text extraction completed',
+      timestamp: extractionEndTime.toISOString(),
+      message: `Text Extraction Complete - ${Math.floor(extractionDuration / 1000)}s`,
       step: 'extract'
     });
     processingStates.set(documentId, state);
@@ -207,21 +212,25 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
 
     // Process text structure
     let processedText = textProcessor.reorganizeContent(extractionResult.text);
+    const analysisEndTime = new Date();
+    const analysisDuration = analysisEndTime.getTime() - analysisStartTime.getTime();
 
     await storage.createProcessingLog({
       documentId,
       step: 'analyze',
       status: 'completed',
-      message: 'Document structure analysis completed'
+      message: 'Document structure analysis completed',
+      duration: analysisDuration
     });
 
     // Step 3: AI Enhancement
+    const enhancementStartTime = new Date();
     state.currentStep = 4;
     state.message = 'AI enhancement in progress...';
     state.progress = 75;
     state.logs.push({
-      timestamp: new Date().toISOString(),
-      message: 'Document structure analysis completed',
+      timestamp: analysisEndTime.toISOString(),
+      message: `Structure Analysis Complete - ${Math.floor(analysisDuration / 1000)}s`,
       step: 'analyze'
     });
     processingStates.set(documentId, state);
@@ -257,6 +266,8 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
 
     // Generate summary
     const summary = await geminiService.generateSummary(processedText);
+    const enhancementEndTime = new Date();
+    const enhancementDuration = enhancementEndTime.getTime() - enhancementStartTime.getTime();
     
     const endTime = new Date();
     const processingTimeMs = endTime.getTime() - startTime.getTime();
@@ -279,7 +290,8 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       documentId,
       step: 'enhance',
       status: 'completed',
-      message: 'AI enhancement completed successfully'
+      message: 'AI enhancement completed successfully',
+      duration: enhancementDuration
     });
 
     // Final state
@@ -288,8 +300,8 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     state.message = 'Processing completed successfully';
     state.progress = 100;
     state.logs.push({
-      timestamp: new Date().toISOString(),
-      message: 'AI enhancement completed',
+      timestamp: enhancementEndTime.toISOString(),
+      message: `AI Enhancement Complete - ${Math.floor(enhancementDuration / 1000)}s`,
       step: 'enhance'
     });
     processingStates.set(documentId, state);

@@ -19,11 +19,29 @@ export function ProcessingView({ currentStep, progress, message, timer, logs }: 
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const getStepIcon = (step: number) => {
-    if (step <= 3) return <CheckCircle className="w-5 h-5 text-secondary" />;
-    if (step === 4) return <Loader2 className="w-5 h-5 text-purple animate-spin" />;
-    return <CheckCircle className="w-5 h-5 text-secondary" />;
+  const getStepIcon = (stepNum: number, isCompleted: boolean) => {
+    if (isCompleted) return <CheckCircle className="w-5 h-5 text-secondary" />;
+    if (stepNum === currentStep) return <Loader2 className="w-5 h-5 text-purple animate-spin" />;
+    return <CheckCircle className="w-5 h-5 text-gray-400" />;
   };
+
+  // Process logs to get timing for each step
+  const getStepInfo = (stepType: string) => {
+    const stepLog = logs.find(log => log.step === stepType);
+    if (stepLog) {
+      const duration = stepLog.message.match(/(\d+)s/)?.[1] || '0';
+      return {
+        isCompleted: true,
+        time: `0:${duration.padStart(2, '0')}`,
+        timestamp: stepLog.timestamp
+      };
+    }
+    return { isCompleted: false, time: '...', timestamp: null };
+  };
+
+  const extractInfo = getStepInfo('extract');
+  const analyzeInfo = getStepInfo('analyze');  
+  const enhanceInfo = getStepInfo('enhance');
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
@@ -44,46 +62,40 @@ export function ProcessingView({ currentStep, progress, message, timer, logs }: 
       </div>
 
       <div className="space-y-4 mb-6">
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center space-x-3">
-            <CheckCircle className="w-5 h-5 text-secondary" />
-            <span className="text-sm text-gray-700">PDF Analysis Complete</span>
-          </div>
-          <span className="text-xs text-gray-500">0:32</span>
-        </div>
-        
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center space-x-3">
-            {getStepIcon(2)}
-            <span className="text-sm text-gray-700">Text Extraction Complete</span>
-          </div>
-          <span className="text-xs text-gray-500">1:45</span>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center space-x-3">
-            {getStepIcon(3)}
-            <span className="text-sm text-gray-700">Structure Analysis Complete</span>
-          </div>
-          <span className="text-xs text-gray-500">2:30</span>
-        </div>
-        
-        <div className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${
-          currentStep >= 4 ? 'bg-purple/5 border-purple' : 'bg-gray-50 border-gray-300'
+        <div className={`flex items-center justify-between p-4 rounded-lg ${
+          extractInfo.isCompleted ? 'bg-green-50' : currentStep >= 2 ? 'bg-blue-50' : 'bg-gray-50'
         }`}>
           <div className="flex items-center space-x-3">
-            {currentStep >= 4 ? (
-              <Loader2 className="w-5 h-5 text-purple animate-spin" />
-            ) : (
-              <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-            )}
-            <span className="text-sm text-gray-700">AI Enhancement in Progress</span>
+            {getStepIcon(2, extractInfo.isCompleted)}
+            <span className="text-sm text-gray-700">
+              {extractInfo.isCompleted ? 'Text Extraction Complete' : 'Text Extraction...'}
+            </span>
           </div>
-          <span className={`text-xs font-medium ${
-            currentStep >= 4 ? 'text-purple' : 'text-gray-500'
-          }`}>
-            {currentStep >= 4 ? timer : '--:--'}
-          </span>
+          <span className="text-xs text-gray-500">{extractInfo.time}</span>
+        </div>
+        
+        <div className={`flex items-center justify-between p-4 rounded-lg ${
+          analyzeInfo.isCompleted ? 'bg-green-50' : currentStep >= 3 ? 'bg-blue-50' : 'bg-gray-50'
+        }`}>
+          <div className="flex items-center space-x-3">
+            {getStepIcon(3, analyzeInfo.isCompleted)}
+            <span className="text-sm text-gray-700">
+              {analyzeInfo.isCompleted ? 'Structure Analysis Complete' : 'Structure Analysis...'}
+            </span>
+          </div>
+          <span className="text-xs text-gray-500">{analyzeInfo.time}</span>
+        </div>
+
+        <div className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${
+          enhanceInfo.isCompleted ? 'bg-green-50 border-green-400' : currentStep >= 4 ? 'bg-purple/5 border-purple' : 'bg-gray-50 border-gray-300'
+        }`}>
+          <div className="flex items-center space-x-3">
+            {getStepIcon(4, enhanceInfo.isCompleted)}
+            <span className="text-sm text-gray-700">
+              {enhanceInfo.isCompleted ? 'AI Enhancement Complete' : 'AI Enhancement...'}
+            </span>
+          </div>
+          <span className="text-xs text-gray-500">{enhanceInfo.time}</span>
         </div>
       </div>
 
