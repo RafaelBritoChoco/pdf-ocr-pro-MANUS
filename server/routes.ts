@@ -158,19 +158,30 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
   const startTime = new Date();
   let state = processingStates.get(documentId)!;
 
+  // Function to update timer
+  const updateTimer = () => {
+    const currentTime = new Date();
+    state.timer = currentTime.getTime() - startTime.getTime();
+    processingStates.set(documentId, state);
+  };
+
+  // Start timer updates
+  const timerInterval = setInterval(updateTimer, 1000); // Update every second
+
   try {
     // Step 1: Extract text
     const extractionStartTime = new Date();
     state.currentStep = 2;
     state.message = 'Extracting text from PDF...';
     state.progress = 25;
-    processingStates.set(documentId, state);
+    updateTimer();
 
     await storage.createProcessingLog({
       documentId,
       step: 'extract',
       status: 'started',
-      message: 'Starting text extraction'
+      message: 'Starting text extraction',
+      duration: 0 // Initialize duration to 0
     });
 
     const extractionResult = await pdfProcessor.extractText(buffer, settings);
@@ -202,13 +213,14 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       step: 'extract',
       duration: extractionDuration
     });
-    processingStates.set(documentId, state);
+    updateTimer();
 
     await storage.createProcessingLog({
       documentId,
       step: 'analyze',
       status: 'started',
-      message: 'Analyzing document structure'
+      message: 'Analyzing document structure',
+      duration: 0 // Initialize duration to 0
     });
 
     // Process text structure
@@ -235,13 +247,14 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       step: 'analyze',
       duration: analysisDuration
     });
-    processingStates.set(documentId, state);
+    updateTimer();
 
     await storage.createProcessingLog({
       documentId,
       step: 'enhance',
       status: 'started',
-      message: 'Starting AI enhancement'
+      message: 'Starting AI enhancement',
+      duration: 0 // Initialize duration to 0
     });
 
     // Process with AI if text is large, chunk it
@@ -251,6 +264,9 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       
       for (let i = 0; i < chunks.length; i++) {
         const chunkStartTime = new Date();
+        state.message = `AI analyzing text chunk ${i + 1}/${chunks.length} - Improving formatting and structure...`;
+        updateTimer();
+        
         const enhanced = await geminiService.processTextChunk(chunks[i], i, chunks.length);
         const chunkEndTime = new Date();
         const chunkDuration = chunkEndTime.getTime() - chunkStartTime.getTime();
@@ -260,23 +276,26 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
         // Update progress
         const chunkProgress = 75 + (20 * (i + 1) / chunks.length);
         state.progress = chunkProgress;
-        state.message = `AI processing chunk ${i + 1}/${chunks.length}...`;
         state.logs.push({
           timestamp: chunkEndTime.toISOString(),
           message: `AI Chunk ${i + 1} Processed`,
           step: 'enhance_chunk',
           duration: chunkDuration
         });
-        processingStates.set(documentId, state);
+        updateTimer();
       }
       
       processedText = enhancedChunks.join('\n\n');
     } else {
+      state.message = 'AI enhancing text quality and structure...';
+      updateTimer();
       const enhancementResult = await geminiService.enhanceText(processedText, settings.aiLevel);
       processedText = enhancementResult.enhancedText;
     }
 
     // Generate summary
+    state.message = 'AI generating document summary...';
+    updateTimer();
     const summary = await geminiService.generateSummary(processedText);
     const enhancementEndTime = new Date();
     const enhancementDuration = enhancementEndTime.getTime() - enhancementStartTime.getTime();
@@ -318,10 +337,16 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       step: 'enhance',
       duration: enhancementDuration
     });
-    processingStates.set(documentId, state);
+    updateTimer();
+    
+    // Clear the timer interval
+    clearInterval(timerInterval);
 
   } catch (error) {
     console.error('Processing error:', error);
+    
+    // Clear the timer interval on error
+    clearInterval(timerInterval);
     
     await storage.updateDocument(documentId, {
       status: 'failed'

@@ -46,6 +46,9 @@ export function UploadArea({ onUpload, isUploading }: UploadAreaProps) {
       .then(blob => {
         const file = new File([blob], 'Pakistan-Sri Lanka FTA_1753791356677.pdf', { type: 'application/pdf' });
         onUpload(file);
+      })
+      .catch(error => {
+        console.error('Error loading sample PDF:', error);
       });
   }, [onUpload]);
 
