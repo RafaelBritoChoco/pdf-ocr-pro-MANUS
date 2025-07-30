@@ -5,7 +5,7 @@ interface ProcessingViewProps {
   currentStep: number;
   progress: number;
   message: string;
-  timer: string;
+  timer: number; // Changed to number for milliseconds
   logs: Array<{
     timestamp: string;
     message: string;
@@ -15,8 +15,11 @@ interface ProcessingViewProps {
 }
 
 export function ProcessingView({ currentStep, progress, message, timer, logs }: ProcessingViewProps) {
-  const formatTime = (timestamp: string): string => {
-    return new Date(timestamp).toLocaleTimeString();
+  const formatTime = (ms: number): string => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const getStepIcon = (stepNum: number, isCompleted: boolean) => {
@@ -27,12 +30,11 @@ export function ProcessingView({ currentStep, progress, message, timer, logs }: 
 
   // Process logs to get timing for each step
   const getStepInfo = (stepType: string) => {
-    const stepLog = logs.find(log => log.step === stepType);
-    if (stepLog) {
-      const duration = stepLog.message.match(/(\d+)s/)?.[1] || '0';
+    const stepLog = logs.find(log => log.step === stepType && log.duration !== undefined);
+    if (stepLog && stepLog.duration !== undefined) {
       return {
         isCompleted: true,
-        time: `0:${duration.padStart(2, '0')}`,
+        time: formatTime(stepLog.duration),
         timestamp: stepLog.timestamp
       };
     }
@@ -55,7 +57,7 @@ export function ProcessingView({ currentStep, progress, message, timer, logs }: 
           <div className="mt-4">
             <div className="bg-purple text-white px-4 py-2 rounded-full text-sm font-medium inline-block">
               <Clock className="w-4 h-4 mr-2 inline" />
-              Finalizing with AI... ({timer})
+              Finalizing with AI... ({formatTime(timer)})
             </div>
           </div>
         )}
@@ -113,3 +115,5 @@ export function ProcessingView({ currentStep, progress, message, timer, logs }: 
     </div>
   );
 }
+
+

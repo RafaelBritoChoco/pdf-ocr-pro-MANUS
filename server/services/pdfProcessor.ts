@@ -1,5 +1,12 @@
-// PDF processing using custom text extraction for any document
 import type { ProcessingSettings } from "@shared/schema";
+import { createWorker } from "tesseract.js";
+import { exec } from "child_process";
+import { promises as fs } from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface PdfExtractionResult {
   text: string;
@@ -10,141 +17,95 @@ export interface PdfExtractionResult {
 
 export class PdfProcessor {
   async extractText(buffer: Buffer, settings: ProcessingSettings): Promise<PdfExtractionResult> {
+    const tempDir = path.join(__dirname, "temp");
+    await fs.mkdir(tempDir, { recursive: true });
+    const inputPdfPath = path.join(tempDir, `input_${Date.now()}.pdf`);
+    await fs.writeFile(inputPdfPath, buffer);
+
+    let worker;
     try {
-      console.log('Starting custom PDF text extraction...');
+      console.log("Starting PDF processing with pdftoppm and Tesseract.js...");
       
-      // Extract text using multiple approaches for better compatibility
-      let extractedText = '';
-      let pageCount = 1;
+      // Convert PDF to images using pdftoppm
+      const outputImageBase = path.join(tempDir, `page`);
+      const pdftoppmCommand = `pdftoppm -png ${inputPdfPath} ${outputImageBase}`;
+      console.log(`Executing: ${pdftoppmCommand}`);
+      await new Promise<void>((resolve, reject) => {
+        exec(pdftoppmCommand, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`pdftoppm error: ${error.message}`);
+            return reject(error);
+          }
+          if (stderr) {
+            console.warn(`pdftoppm stderr: ${stderr}`);
+          }
+          resolve();
+        });
+      });
+
+      let extractedText = "";
+      let pageCount = 0;
       
-      // Try multiple extraction methods
-      extractedText = this.extractTextFromBuffer(buffer);
-      
-      if (!extractedText || extractedText.trim().length < 50) {
-        console.log('Primary extraction yielded minimal text, trying alternative methods...');
-        extractedText = this.extractBasicText(buffer);
+      // Initialize Tesseract worker with language
+      worker = await createWorker("eng");
+
+      // Process each generated image with Tesseract.js
+      let pageIndex = 1;
+      while (true) {
+        const imagePath = `${outputImageBase}-${pageIndex}.png`;
+        try {
+          await fs.access(imagePath);
+          console.log(`Processing image: ${imagePath}`);
+          const { data: { text } } = await worker.recognize(imagePath);
+          extractedText += text + "\n";
+          pageCount++;
+          pageIndex++;
+        } catch (e: any) {
+          if (e.code === "ENOENT") {
+            // No more image files
+            break;
+          } else {
+            console.error(`Error processing image ${imagePath}:`, e);
+            throw e;
+          }
+        }
       }
-      
+
       if (!extractedText || extractedText.trim().length < 20) {
-        throw new Error('Unable to extract readable text from PDF');
+        throw new Error("Unable to extract readable text from PDF");
       }
-      
+
       const cleanedText = this.cleanText(extractedText);
       const wordCount = this.countWords(cleanedText);
-      
-      // Estimate page count based on content length
-      pageCount = Math.max(1, Math.ceil(wordCount / 300));
-      
-      console.log(`Extracted ${wordCount} words from estimated ${pageCount} pages`);
-      
+
+      console.log(`Extracted ${wordCount} words from ${pageCount} pages`);
+
       return {
         text: cleanedText,
         pageCount,
         wordCount,
-        metadata: { 
-          title: 'PDF Document', 
+        metadata: {
+          title: "PDF Document (OCR)",
           processed: new Date().toISOString(),
-          extractionMethod: 'custom'
+          extractionMethod: "pdftoppm-tesseract"
         }
       };
     } catch (error) {
-      console.error('PDF processing error:', error);
+      console.error("PDF processing error:", error);
       throw new Error(`Failed to extract text from PDF: ${error}`);
+    } finally {
+      // Clean up temporary files
+      if (worker) {
+        await worker.terminate();
+      }
+      await fs.rm(tempDir, { recursive: true, force: true });
     }
-  }
-
-  private extractTextFromBuffer(buffer: Buffer): string {
-    // Convert buffer to string using different encodings and extract text
-    let results: string[] = [];
-    
-    // Try UTF-8 first
-    try {
-      const utf8String = buffer.toString('utf8');
-      const utf8Text = this.extractTextFromString(utf8String);
-      if (utf8Text.length > 50) results.push(utf8Text);
-    } catch (e) {}
-    
-    // Try Latin1 for binary PDF content
-    try {
-      const latin1String = buffer.toString('latin1');
-      const latin1Text = this.extractTextFromString(latin1String);
-      if (latin1Text.length > 50) results.push(latin1Text);
-    } catch (e) {}
-    
-    // Try ASCII
-    try {
-      const asciiString = buffer.toString('ascii');
-      const asciiText = this.extractTextFromString(asciiString);
-      if (asciiText.length > 50) results.push(asciiText);
-    } catch (e) {}
-    
-    // Return the longest extracted text
-    return results.length > 0 ? results.reduce((a, b) => a.length > b.length ? a : b) : '';
-  }
-
-  private extractTextFromString(pdfString: string): string {
-    let extractedText = '';
-    
-    // Method 1: Extract text between parentheses with Tj operators
-    const tjMatches = pdfString.match(/\((.*?)\)\s*Tj/g);
-    if (tjMatches) {
-      extractedText += tjMatches
-        .map(match => match.replace(/^\(|\)\s*Tj$/g, ''))
-        .filter(text => text.length > 0)
-        .join(' ') + ' ';
-    }
-    
-    // Method 2: Extract text between parentheses with TJ operators
-    const TJMatches = pdfString.match(/\[(.*?)\]\s*TJ/g);
-    if (TJMatches) {
-      extractedText += TJMatches
-        .map(match => {
-          const content = match.replace(/^\[|\]\s*TJ$/g, '');
-          return content.replace(/\((.*?)\)/g, '$1');
-        })
-        .filter(text => text.length > 0)
-        .join(' ') + ' ';
-    }
-    
-    // Method 3: Extract text using BT/ET blocks
-    const btMatches = pdfString.match(/BT[\s\S]*?ET/g);
-    if (btMatches) {
-      btMatches.forEach(block => {
-        const textInParens = block.match(/\((.*?)\)/g);
-        if (textInParens) {
-          textInParens.forEach(text => {
-            extractedText += text.replace(/[()]/g, '') + ' ';
-          });
-        }
-      });
-    }
-    
-    return extractedText.trim();
-  }
-
-  private extractBasicText(buffer: Buffer): string {
-    // Fallback method: look for readable text patterns
-    const pdfString = buffer.toString('latin1');
-    
-    // Look for readable text patterns in the PDF stream
-    const readableTextPattern = /[A-Za-z][A-Za-z\s,.-]{10,}/g;
-    const readableMatches = pdfString.match(readableTextPattern);
-    
-    if (readableMatches && readableMatches.length > 0) {
-      return readableMatches
-        .filter(text => text.length > 10)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-    
-    throw new Error('Unable to extract readable text from PDF');
   }
 
   private cleanText(text: string): string {
     return text
-      .replace(/\s+/g, ' ')
-      .replace(/\n+/g, '\n')
+      .replace(/\s+/g, " ")
+      .replace(/\n+/g, "\n")
       .trim();
   }
 
@@ -154,14 +115,16 @@ export class PdfProcessor {
 
   chunkText(text: string, chunkSize: number = 4000): string[] {
     const chunks: string[] = [];
-    const words = text.split(' ');
-    
+    const words = text.split(" ");
+
     for (let i = 0; i < words.length; i += chunkSize) {
-      chunks.push(words.slice(i, i + chunkSize).join(' '));
+      chunks.push(words.slice(i, i + chunkSize).join(" "));
     }
-    
+
     return chunks;
   }
 }
 
 export const pdfProcessor = new PdfProcessor();
+
+

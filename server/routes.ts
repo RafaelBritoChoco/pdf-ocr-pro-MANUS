@@ -7,7 +7,7 @@ import { geminiService } from "./services/geminiService";
 import { textProcessor } from "./services/textProcessor";
 import type { ProcessingSettings, ProcessingState } from "@shared/schema";
 
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
@@ -62,7 +62,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Start processing asynchronously
       processDocument(document.id, req.file.buffer, settings).catch(console.error);
 
-      res.json({ 
+      res.json({
         documentId: document.id,
         status: 'processing'
       });
@@ -198,8 +198,9 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     state.progress = 50;
     state.logs.push({
       timestamp: extractionEndTime.toISOString(),
-      message: `Text Extraction Complete - ${Math.floor(extractionDuration / 1000)}s`,
-      step: 'extract'
+      message: `Text Extraction Complete`,
+      step: 'extract',
+      duration: extractionDuration
     });
     processingStates.set(documentId, state);
 
@@ -230,8 +231,9 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     state.progress = 75;
     state.logs.push({
       timestamp: analysisEndTime.toISOString(),
-      message: `Structure Analysis Complete - ${Math.floor(analysisDuration / 1000)}s`,
-      step: 'analyze'
+      message: `Structure Analysis Complete`,
+      step: 'analyze',
+      duration: analysisDuration
     });
     processingStates.set(documentId, state);
 
@@ -248,13 +250,23 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
       let enhancedChunks: string[] = [];
       
       for (let i = 0; i < chunks.length; i++) {
+        const chunkStartTime = new Date();
         const enhanced = await geminiService.processTextChunk(chunks[i], i, chunks.length);
+        const chunkEndTime = new Date();
+        const chunkDuration = chunkEndTime.getTime() - chunkStartTime.getTime();
+
         enhancedChunks.push(enhanced);
         
         // Update progress
         const chunkProgress = 75 + (20 * (i + 1) / chunks.length);
         state.progress = chunkProgress;
         state.message = `AI processing chunk ${i + 1}/${chunks.length}...`;
+        state.logs.push({
+          timestamp: chunkEndTime.toISOString(),
+          message: `AI Chunk ${i + 1} Processed`,
+          step: 'enhance_chunk',
+          duration: chunkDuration
+        });
         processingStates.set(documentId, state);
       }
       
@@ -299,10 +311,12 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     state.status = 'completed';
     state.message = 'Processing completed successfully';
     state.progress = 100;
+    state.timer = processingTimeMs; // Update total timer
     state.logs.push({
       timestamp: enhancementEndTime.toISOString(),
-      message: `AI Enhancement Complete - ${Math.floor(enhancementDuration / 1000)}s`,
-      step: 'enhance'
+      message: `AI Enhancement Complete`,
+      step: 'enhance',
+      duration: enhancementDuration
     });
     processingStates.set(documentId, state);
 
@@ -322,6 +336,9 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
 
     state.status = 'error';
     state.message = `Processing failed: ${error}`;
+    state.timer = new Date().getTime() - startTime.getTime(); // Update timer on error
     processingStates.set(documentId, state);
   }
 }
+
+
