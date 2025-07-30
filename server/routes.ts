@@ -18,15 +18,16 @@ const processingStates = new Map<string, ProcessingState>();
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Upload and process PDF
-  app.post("/api/process-pdf", upload.single('pdf'), async (req, res) => {
+  app.post("/api/process-pdf", upload.single("pdf"), async (req, res) => {
     try {
       if (!req.file) {
+        console.error("Upload error: No PDF file uploaded");
         return res.status(400).json({ error: "No PDF file uploaded" });
       }
 
       const settings: ProcessingSettings = req.body.settings ? JSON.parse(req.body.settings) : {
-        extractionMethod: 'quick',
-        aiLevel: 'standard',
+        extractionMethod: "quick",
+        aiLevel: "standard",
         outputFormats: { text: true, word: false, markdown: false },
         debugMode: false
       };
@@ -43,9 +44,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Initialize processing state
       const processingState: ProcessingState = {
         currentStep: 1,
-        status: 'processing',
+        status: "processing",
         progress: 10,
-        message: 'Starting PDF analysis...',
+        message: "Starting PDF analysis...",
         timer: 0,
         logs: []
       };
@@ -54,22 +55,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log start
       await storage.createProcessingLog({
         documentId: document.id,
-        step: 'upload',
-        status: 'completed',
+        step: "upload",
+        status: "completed",
         message: `PDF uploaded: ${req.file.originalname}`
       });
 
       // Start processing asynchronously
-      processDocument(document.id, req.file.buffer, settings).catch(console.error);
+      processDocument(document.id, req.file.buffer, settings).catch(error => {
+        console.error(`Async processing error for document ${document.id}:`, error);
+        // Update document status to failed if async processing fails
+        storage.updateDocument(document.id, { status: 'failed' });
+        processingStates.set(document.id, { ...processingStates.get(document.id)!, status: 'error', message: `Processing failed: ${error.message}` });
+      });
 
       res.json({
         documentId: document.id,
-        status: 'processing'
+        status: "processing"
       });
 
     } catch (error) {
-      console.error('Upload error:', error);
-      res.status(500).json({ error: 'Failed to process PDF' });
+      console.error("Upload error:", error);
+      res.status(500).json({ error: "Failed to process PDF" });
     }
   });
 
@@ -88,16 +94,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         document,
         processingState: state || {
           currentStep: 5,
-          status: 'completed',
+          status: "completed",
           progress: 100,
-          message: 'Processing complete',
+          message: "Processing complete",
           timer: 0,
           logs: []
         }
       });
     } catch (error) {
-      console.error('Status error:', error);
-      res.status(500).json({ error: 'Failed to get status' });
+      console.error("Status error:", error);
+      res.status(500).json({ error: "Failed to get status" });
     }
   });
 
@@ -108,8 +114,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const logs = await storage.getProcessingLogs(documentId);
       res.json({ logs });
     } catch (error) {
-      console.error('Logs error:', error);
-      res.status(500).json({ error: 'Failed to get logs' });
+      console.error("Logs error:", error);
+      res.status(500).json({ error: "Failed to get logs" });
     }
   });
 
@@ -123,15 +129,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document or processed text not found" });
       }
 
-      const filename = document.filename.replace('.pdf', '');
+      const filename = document.filename.replace(".pdf", "");
       
-      if (format === 'txt') {
-        res.setHeader('Content-Type', 'text/plain');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}_processed.txt"`);
+      if (format === "txt") {
+        res.setHeader("Content-Type", "text/plain");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}_processed.txt"`);
         res.send(document.processedText);
-      } else if (format === 'json') {
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}_data.json"`);
+      } else if (format === "json") {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}_data.json"`);
         res.json({
           filename: document.filename,
           processedText: document.processedText,
@@ -145,8 +151,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ error: "Unsupported format" });
       }
     } catch (error) {
-      console.error('Download error:', error);
-      res.status(500).json({ error: 'Failed to download' });
+      console.error("Download error:", error);
+      res.status(500).json({ error: "Failed to download" });
     }
   });
 
@@ -162,15 +168,15 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     // Step 1: Extract text
     const extractionStartTime = new Date();
     state.currentStep = 2;
-    state.message = 'Extracting text from PDF...';
+    state.message = "Extracting text from PDF...";
     state.progress = 25;
     processingStates.set(documentId, state);
 
     await storage.createProcessingLog({
       documentId,
-      step: 'extract',
-      status: 'started',
-      message: 'Starting text extraction'
+      step: "extract",
+      status: "started",
+      message: "Starting text extraction"
     });
 
     const extractionResult = await pdfProcessor.extractText(buffer, settings);
@@ -185,8 +191,8 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
 
     await storage.createProcessingLog({
       documentId,
-      step: 'extract',
-      status: 'completed',
+      step: "extract",
+      status: "completed",
       message: `Text extracted: ${extractionResult.wordCount} words, ${extractionResult.pageCount} pages`,
       duration: extractionDuration
     });
@@ -194,21 +200,21 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     // Step 2: Analyze structure
     const analysisStartTime = new Date();
     state.currentStep = 3;
-    state.message = 'Analyzing document structure...';
+    state.message = "Analyzing document structure...";
     state.progress = 50;
     state.logs.push({
       timestamp: extractionEndTime.toISOString(),
       message: `Text Extraction Complete`,
-      step: 'extract',
+      step: "extract",
       duration: extractionDuration
     });
     processingStates.set(documentId, state);
 
     await storage.createProcessingLog({
       documentId,
-      step: 'analyze',
-      status: 'started',
-      message: 'Analyzing document structure'
+      step: "analyze",
+      status: "started",
+      message: "Analyzing document structure"
     });
 
     // Process text structure
@@ -218,30 +224,30 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
 
     await storage.createProcessingLog({
       documentId,
-      step: 'analyze',
-      status: 'completed',
-      message: 'Document structure analysis completed',
+      step: "analyze",
+      status: "completed",
+      message: "Document structure analysis completed",
       duration: analysisDuration
     });
 
     // Step 3: AI Enhancement
     const enhancementStartTime = new Date();
     state.currentStep = 4;
-    state.message = 'AI enhancement in progress...';
+    state.message = "AI enhancement in progress...";
     state.progress = 75;
     state.logs.push({
       timestamp: analysisEndTime.toISOString(),
       message: `Structure Analysis Complete`,
-      step: 'analyze',
+      step: "analyze",
       duration: analysisDuration
     });
     processingStates.set(documentId, state);
 
     await storage.createProcessingLog({
       documentId,
-      step: 'enhance',
-      status: 'started',
-      message: 'Starting AI enhancement'
+      step: "enhance",
+      status: "started",
+      message: "Starting AI enhancement"
     });
 
     // Process with AI if text is large, chunk it
@@ -264,13 +270,13 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
         state.logs.push({
           timestamp: chunkEndTime.toISOString(),
           message: `AI Chunk ${i + 1} Processed`,
-          step: 'enhance_chunk',
+          step: "enhance_chunk",
           duration: chunkDuration
         });
         processingStates.set(documentId, state);
       }
       
-      processedText = enhancedChunks.join('\n\n');
+      processedText = enhancedChunks.join("\n\n");
     } else {
       const enhancementResult = await geminiService.enhanceText(processedText, settings.aiLevel);
       processedText = enhancementResult.enhancedText;
@@ -283,7 +289,7 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     
     const endTime = new Date();
     const processingTimeMs = endTime.getTime() - startTime.getTime();
-    const processingTimeStr = `${Math.floor(processingTimeMs / 60000)}:${Math.floor((processingTimeMs % 60000) / 1000).toString().padStart(2, '0')}`;
+    const processingTimeStr = `${Math.floor(processingTimeMs / 60000)}:${Math.floor((processingTimeMs % 60000) / 1000).toString().padStart(2, "0")}`;
 
     // Update document with final results
     await storage.updateDocument(documentId, {
@@ -294,51 +300,53 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
         wordCount: extractionResult.wordCount,
         processingTime: processingTimeStr
       }),
-      status: 'completed',
+      status: "completed",
       processingTime: Math.floor(processingTimeMs / 1000)
     });
 
     await storage.createProcessingLog({
       documentId,
-      step: 'enhance',
-      status: 'completed',
-      message: 'AI enhancement completed successfully',
+      step: "enhance",
+      status: "completed",
+      message: "AI enhancement completed successfully",
       duration: enhancementDuration
     });
 
     // Final state
     state.currentStep = 5;
-    state.status = 'completed';
-    state.message = 'Processing completed successfully';
+    state.status = "completed";
+    state.message = "Processing completed successfully";
     state.progress = 100;
     state.timer = processingTimeMs; // Update total timer
     state.logs.push({
       timestamp: enhancementEndTime.toISOString(),
       message: `AI Enhancement Complete`,
-      step: 'enhance',
+      step: "enhance",
       duration: enhancementDuration
     });
     processingStates.set(documentId, state);
 
   } catch (error) {
-    console.error('Processing error:', error);
+    console.error(`Processing error for document ${documentId}:`, error);
     
     await storage.updateDocument(documentId, {
-      status: 'failed'
+      status: "failed"
     });
 
     await storage.createProcessingLog({
       documentId,
-      step: 'error',
-      status: 'failed',
+      step: "error",
+      status: "failed",
       message: `Processing failed: ${error}`
     });
 
-    state.status = 'error';
+    state.status = "error";
     state.message = `Processing failed: ${error}`;
     state.timer = new Date().getTime() - startTime.getTime(); // Update timer on error
     processingStates.set(documentId, state);
   }
 }
+
+
 
 
