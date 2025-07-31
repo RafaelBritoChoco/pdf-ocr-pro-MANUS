@@ -2,6 +2,25 @@
 
 Sistema avançado de processamento de PDFs com OCR e melhorias de formatação de texto.
 
+## ⚡ **INÍCIO RÁPIDO - 3 COMANDOS**
+
+```powershell
+# 1. Instalar
+npm install
+
+# 2. Frontend (Terminal 1)
+npx vite
+
+# 3. Backend (Terminal 2) 
+npm run dev:server
+
+# 🌐 Acessar: http://localhost:5173
+```
+
+> 📖 **Instruções ainda mais detalhadas:** Veja o arquivo `INICIO-RAPIDO.md`
+
+---
+
 ## 🌐 **APLICAÇÃO EM PRODUÇÃO**
 **🚀 Acesse online**: https://spiffy-pastelito-c7db3d.netlify.app
 
@@ -43,7 +62,40 @@ Antes de começar, certifique-se de ter instalado:
 - **Git** - [Download aqui](https://git-scm.com/)
 - **Conta no Netlify** (para deploy) - [Criar conta](https://netlify.com/)
 
-### 🖥️ **1. EXECUÇÃO LOCAL (Desenvolvimento)**
+### 🖥️ **1. EXECUÇÃO LOCAL (Desenvolvimento) - MÉTODO SIMPLES**
+
+#### ⚡ **INICIALIZAÇÃO RÁPIDA** (3 comandos apenas):
+
+```powershell
+# 1. Instalar dependências
+npm install
+
+# 2. Abrir DOIS terminais e executar:
+# Terminal 1 - Frontend (Vite):
+npx vite
+
+# Terminal 2 - Backend (Express):
+npm run dev:server
+```
+
+#### 🌐 **Acessar:**
+- **Aplicação**: http://localhost:5173 
+- **API**: http://localhost:3000
+
+#### ⚠️ **IMPORTANTE - Se der erro de porta ocupada:**
+```powershell
+# Verificar processo na porta 3000:
+netstat -ano | findstr :3000
+
+# Matar processo (substitua PID pelo número mostrado):
+taskkill /PID [NÚMERO_DO_PID] /F
+
+# Depois rodar novamente os comandos acima
+```
+
+---
+
+### 🔧 **MÉTODO ALTERNATIVO (se o acima não funcionar):**
 
 #### Passo 1: Clone o repositório
 ```bash
@@ -58,11 +110,14 @@ npm install
 
 #### Passo 3: Executar o projeto
 ```bash
-# Opção 1: Apenas o servidor backend (porta 3000)
-npm run dev
+# ❌ EVITE: npm run dev:both (pode dar conflito de porta)
 
-# Opção 2: Servidor + Frontend juntos (recomendado)
-npm run dev:both
+# ✅ USE ESTE MÉTODO:
+# Terminal 1:
+npx vite
+
+# Terminal 2: 
+npm run dev:server
 ```
 
 #### Passo 4: Acessar a aplicação
@@ -78,8 +133,16 @@ npm test
 # Verificar TypeScript
 npm run check
 
-# Build de desenvolvimento
+# Build de produção (se necessário)
 npm run build:client
+
+# ⚠️ Se houver problemas com porta ocupada:
+# Windows:
+netstat -ano | findstr :3000
+taskkill /PID [PID_NUMBER] /F
+
+# ⚠️ Se houver erro "exec is not defined" - JÁ CORRIGIDO:
+# Foi removida a importação problemática do PDF.js no pdfProcessor.ts
 ```
 
 ### 🌐 **2. DEPLOY EM PRODUÇÃO (Netlify)**
@@ -138,46 +201,74 @@ PORT=3000
 
 ### 🐛 **4. SOLUÇÃO DE PROBLEMAS COMUNS**
 
-#### **Erro: "exec is not defined"**
-- ✅ **Solucionado**: Arquivo `testTesseract.ts` excluído da compilação
+#### **❌ Erro: "address already in use" (Porta 3000 ocupada)**
+```powershell
+# 1. Verificar qual processo está usando:
+netstat -ano | findstr :3000
 
-#### **Erro: "Cannot find module"**
+# 2. Matar o processo:
+taskkill /PID [NÚMERO_DO_PID] /F
+
+# 3. Rodar novamente:
+npx vite  # Terminal 1
+npm run dev:server  # Terminal 2
+```
+
+#### **❌ Erro: "exec is not defined" - JÁ CORRIGIDO**
+- ✅ **Solucionado**: Importação problemática do PDF.js foi removida do `pdfProcessor.ts`
+
+#### **❌ Erro: "Cannot find module"**
 ```bash
 # Limpar cache e reinstalar
 rm -rf node_modules package-lock.json
 npm install
 ```
 
-#### **Erro de build do frontend**
+#### **❌ Erro de build do frontend**
 ```bash
 # Build apenas do frontend
-cd client
-npm install
-npm run build
+npm run build:client
 ```
 
-#### **Porta já em uso**
+#### **❌ Erro: npm run dev:both não funciona**
 ```bash
-# Windows: Matar processo na porta 3000
-netstat -ano | findstr :3000
-taskkill /PID <PID> /F
-
-# Linux/Mac:
-lsof -ti:3000 | xargs kill -9
+# ❌ EVITE: npm run dev:both (pode causar conflito)
+# ✅ USE: Dois terminais separados
+# Terminal 1: npx vite
+# Terminal 2: npm run dev:server
 ```
 
 ### 📊 **5. VERIFICAÇÃO DE FUNCIONAMENTO**
 
-#### **Checklist Local**
+#### **✅ Checklist Rápido para Testes**
+```powershell
+# 1. Instalar dependências
+npm install
+
+# 2. Abrir dois terminais:
+# Terminal 1:
+npx vite
+# ➜ Deve mostrar: Local: http://localhost:5173/
+
+# Terminal 2:
+npm run dev:server  
+# ➜ Deve mostrar: [express] serving on port 3000
+
+# 3. Acessar: http://localhost:5173
+# ➜ Interface do PDF OCR deve carregar
+```
+
+#### **✅ Checklist Completo**
 - [ ] `npm install` executado sem erros
-- [ ] `npm run dev` inicia servidor na porta 3000
+- [ ] `npx vite` inicia frontend na porta 5173
+- [ ] `npm run dev:server` inicia backend na porta 3000
 - [ ] Frontend acessível em http://localhost:5173
 - [ ] Upload de PDF funciona
 - [ ] Testes passam: `npm test`
 
-#### **Checklist Deploy**
-- [ ] Build completa: `npm run build:client`
-- [ ] Pasta `dist/public` criada
+#### **✅ URLs de Acesso**
+- **Desenvolvimento**: http://localhost:5173
+- **Produção**: https://spiffy-pastelito-c7db3d.netlify.app
 - [ ] Deploy no Netlify sem erros
 - [ ] Aplicação acessível na URL do Netlify
 - [ ] Upload de PDF funciona em produção
