@@ -4,8 +4,10 @@ import multer from "multer";
 import { storage } from "./storage";
 import { pdfProcessor } from "./services/pdfProcessor";
 import { geminiService } from "./services/geminiService";
-import { textProcessor } from "./services/textProcessor";
+import { TextProcessor } from "./services/textProcessor";
 import type { ProcessingSettings, ProcessingState } from "@shared/schema";
+
+const textProcessor = new TextProcessor();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -228,6 +230,7 @@ async function processDocument(documentId: string, buffer: Buffer, settings: Pro
     });
 
     // Process text structure
+    // Using the textProcessor.reorganizeContent para formatar os parágrafos
     let processedText = textProcessor.reorganizeContent(extractionResult.text);
     const analysisEndTime = new Date();
     const analysisDuration = analysisEndTime.getTime() - analysisStartTime.getTime();

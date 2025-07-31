@@ -1,12 +1,16 @@
 import type { ProcessingSettings } from "@shared/schema";
 import { createWorker } from "tesseract.js";
-import { exec } from "child_process";
 import { promises as fs } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { createCanvas } from "canvas";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Configurar o worker do PDF.js para usar a versão legacy
+pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
 
 export interface PdfExtractionResult {
   text: string;
