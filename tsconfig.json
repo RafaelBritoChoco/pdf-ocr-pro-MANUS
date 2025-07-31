@@ -1,6 +1,6 @@
 {
   "include": ["client/src/**/*", "shared/**/*", "server/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "build", "dist"],
+  "exclude": ["node_modules", "build", "dist", "server/testTesseract.ts"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./.cache/tsbuildinfo",

@@ -5,6 +5,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createCanvas } from "canvas";
+import { exec } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,8 +61,8 @@ export class PdfProcessor {
       // Initialize Tesseract worker with language and optimized settings
       worker = await createWorker("eng");
       await worker.setParameters({
-        tessedit_pageseg_mode: '1', // Automatic page segmentation with OSD
-        tessedit_ocr_engine_mode: '1', // LSTM only
+        tessedit_pageseg_mode: 1 as any, // Automatic page segmentation with OSD
+        tessedit_ocr_engine_mode: 1 as any, // LSTM only
       });
 
       // Process each generated image with Tesseract.js

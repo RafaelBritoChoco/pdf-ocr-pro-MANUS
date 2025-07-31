@@ -49,7 +49,7 @@ export default function Home() {
           currentStep={currentStep}
           progress={uploadProgress}
           message={processingState.message || 'Processing...'}
-          timer={timer}
+          timer={Number(timer)}
           logs={logs}
         />
       );
