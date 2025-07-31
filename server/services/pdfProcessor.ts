@@ -3,7 +3,7 @@ import { createWorker } from "tesseract.js";
 import { promises as fs } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import * as pdfjsLib from "pdfjs-dist";
 import { createCanvas } from "canvas";
 import { exec } from "child_process";
 
